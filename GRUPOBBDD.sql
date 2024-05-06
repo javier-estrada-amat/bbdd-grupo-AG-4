@@ -156,3 +156,147 @@ INSERT INTO EMPLOYEE_JOB_HISTORY (EMPLOYEE_ID, DEPARTMENT_ID, JOB_ID, START_DATE
 INSERT INTO EMPLOYEE_JOB_HISTORY (EMPLOYEE_ID, DEPARTMENT_ID, JOB_ID, START_DATE, END_DATE) VALUES
 (105, 5, 5, TO_DATE('2020-05-01', 'YYYY-MM-DD'), NULL);
 
+-- actividad 1 --
+
+CREATE OR REPLACE PROCEDURE CambiarOficio (
+    p_empleado_id IN EMPLOYEES.EMPLOYEE_ID%TYPE,
+    p_nuevo_job_id IN EMPLOYEES.JOB_ID%TYPE
+) AS
+    v_nombre_empleado EMPLOYEES.FIRST_NAME%TYPE;
+    v_apellido_empleado EMPLOYEES.LAST_NAME%TYPE;
+    v_antiguo_job_id EMPLOYEES.JOB_ID%TYPE;
+BEGIN
+    -- Obtener el nombre y apellido del empleado, y su antiguo oficio
+    SELECT FIRST_NAME, LAST_NAME, JOB_ID INTO v_nombre_empleado, v_apellido_empleado, v_antiguo_job_id
+    FROM EMPLOYEES
+    WHERE EMPLOYEE_ID = p_empleado_id;
+
+    -- Actualizar el oficio del empleado
+    UPDATE EMPLOYEES
+    SET JOB_ID = p_nuevo_job_id
+    WHERE EMPLOYEE_ID = p_empleado_id;
+
+    -- Mostrar los cambios realizados
+    DBMS_OUTPUT.PUT_LINE('Empleado: ' || v_nombre_empleado || ' ' || v_apellido_empleado);
+    DBMS_OUTPUT.PUT_LINE('Oficio anterior: ' || v_antiguo_job_id);
+    DBMS_OUTPUT.PUT_LINE('Nuevo oficio: ' || p_nuevo_job_id);
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('No se encontró el empleado con ID: ' || p_empleado_id);
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error al actualizar el oficio del empleado.');
+END;
+/
+
+-- Esto se ejecuta asi por ejemplo--
+BEGIN
+    CambiarOficio(101, 1);
+END;
+/
+
+                                        --ACTIVIDAD 2-- 
+
+-- Creación de la función para verificar si el ID del oficio existe
+CREATE OR REPLACE FUNCTION ExisteOficio(p_job_id IN JOBS.JOB_ID%TYPE) RETURN BOOLEAN IS
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_count
+    FROM JOBS
+    WHERE JOB_ID = p_job_id;
+
+    RETURN v_count > 0;
+END;
+/
+
+-- Creación del procedimiento que llama a la función
+CREATE OR REPLACE PROCEDURE CambiarOficioConValidacion (
+    p_empleado_id IN EMPLOYEES.EMPLOYEE_ID%TYPE,
+    p_nuevo_job_id IN EMPLOYEES.JOB_ID%TYPE
+) AS
+    v_nombre_empleado EMPLOYEES.FIRST_NAME%TYPE;
+    v_apellido_empleado EMPLOYEES.LAST_NAME%TYPE;
+    v_antiguo_job_id EMPLOYEES.JOB_ID%TYPE;
+BEGIN
+    -- Verificar si el nuevo job_id existe
+    IF NOT ExisteOficio(p_nuevo_job_id) THEN
+        DBMS_OUTPUT.PUT_LINE('El oficio con ID ' || p_nuevo_job_id || ' no existe.');
+        RETURN;
+    END IF;
+
+    -- Obtener el nombre y apellido del empleado, y su antiguo oficio
+    SELECT FIRST_NAME, LAST_NAME, JOB_ID INTO v_nombre_empleado, v_apellido_empleado, v_antiguo_job_id
+    FROM EMPLOYEES
+    WHERE EMPLOYEE_ID = p_empleado_id;
+
+    -- Actualizar el oficio del empleado
+    UPDATE EMPLOYEES
+    SET JOB_ID = p_nuevo_job_id
+    WHERE EMPLOYEE_ID = p_empleado_id;
+
+    -- Mostrar los cambios realizados
+    DBMS_OUTPUT.PUT_LINE('Empleado: ' || v_nombre_empleado || ' ' || v_apellido_empleado);
+    DBMS_OUTPUT.PUT_LINE('Oficio anterior: ' || v_antiguo_job_id);
+    DBMS_OUTPUT.PUT_LINE('Nuevo oficio: ' || p_nuevo_job_id);
+
+    -- Confirmar los cambios
+    COMMIT;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('No se encontró el empleado con ID: ' || p_empleado_id);
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error al actualizar el oficio del empleado.');
+        ROLLBACK;
+END;
+/
+
+BEGIN
+    CambiarOficioConValidacion(101, 7);
+END;
+/
+
+
+--- ACTIVIDAD 3 ----
+DECLARE
+    v_empleado_id EMPLOYEES.EMPLOYEE_ID%TYPE := 101; -- Reemplaza con el ID del empleado
+    v_nuevo_job_id EMPLOYEES.JOB_ID%TYPE := 3; -- Reemplaza con el nuevo JOB_ID
+BEGIN
+    -- Llamada al procedimiento con los valores directamente asignados
+    CambiarOficioConValidacion(v_empleado_id, v_nuevo_job_id);
+END;
+/
+
+--ACTIVIDAD 4--
+
+CREATE TABLE EMP_AUDIT (
+    EMPLOYEE_ID NUMBER,
+    UPDATE_TIME TIMESTAMP,
+    AUDIT_MESSAGE VARCHAR2(255)
+);
+
+CREATE OR REPLACE TRIGGER AuditSalario
+AFTER UPDATE OF SALARY ON EMPLOYEES
+FOR EACH ROW
+WHEN (NEW.SALARY != OLD.SALARY)
+BEGIN
+    INSERT INTO EMP_AUDIT (EMPLOYEE_ID, UPDATE_TIME, AUDIT_MESSAGE)
+    VALUES (:OLD.EMPLOYEE_ID, SYSTIMESTAMP, 'Salario actualizado de ' || TO_CHAR(:OLD.SALARY) || ' a ' || TO_CHAR(:NEW.SALARY));
+END;
+/
+
+----Aquí comprobamos de que salario tiene antes de modificar nada--
+
+select * 
+from EMPLOYEES
+
+---- Actualizamos el salario---
+
+UPDATE EMPLOYEES
+SET SALARY = 75000
+WHERE EMPLOYEE_ID = 101;
+
+--- Comprobamos que el trige ha funcionado --
+
+select * 
+from EMP_AUDIT
+
